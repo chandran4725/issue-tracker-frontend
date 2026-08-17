@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { projectApi } from '../../api/projectApi';
+import { useAuth } from '../../context/AuthContext';
 import { useNotification } from '../../context/NotificationContext';
 import { ProjectModal } from './ProjectModal';
 import { Button } from '../common/Button';
@@ -15,6 +16,7 @@ export function ProjectListView() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingProject, setEditingProject] = useState(null);
   const [isSaving, setIsSaving] = useState(false);
+  const { canManageProjects } = useAuth();
   const { notifySuccess, notifyError } = useNotification();
 
   useEffect(() => {
@@ -82,15 +84,17 @@ export function ProjectListView() {
             onChange={(e) => setSearch(e.target.value)}
           />
         </div>
-        <Button
-          icon={Plus}
-          onClick={() => {
-            setEditingProject(null);
-            setIsModalOpen(true);
-          }}
-        >
-          New Project
-        </Button>
+        {canManageProjects && (
+          <Button
+            icon={Plus}
+            onClick={() => {
+              setEditingProject(null);
+              setIsModalOpen(true);
+            }}
+          >
+            New Project
+          </Button>
+        )}
       </div>
 
       {/* Projects Grid */}
@@ -101,9 +105,9 @@ export function ProjectListView() {
           <FolderKanban className="w-12 h-12 text-slate-300 mx-auto mb-3" />
           <h3 className="text-base font-semibold text-slate-700">No Projects Found</h3>
           <p className="text-xs text-slate-500 max-w-sm mx-auto mt-1 mb-4">
-            {search ? 'Try adjusting your search criteria.' : 'Get started by creating your first project initiative.'}
+            {search ? 'Try adjusting your search criteria.' : 'No project initiatives found for your account.'}
           </p>
-          {!search && (
+          {!search && canManageProjects && (
             <Button
               size="sm"
               icon={Plus}
@@ -127,25 +131,27 @@ export function ProjectListView() {
                   <h3 className="font-bold text-slate-800 text-base leading-snug line-clamp-1">
                     {project.pro_title}
                   </h3>
-                  <div className="flex items-center gap-1 shrink-0">
-                    <button
-                      onClick={() => {
-                        setEditingProject(project);
-                        setIsModalOpen(true);
-                      }}
-                      className="p-1 text-slate-400 hover:text-brand-600 rounded-md transition-colors"
-                      title="Edit"
-                    >
-                      <Edit3 className="w-4 h-4" />
-                    </button>
-                    <button
-                      onClick={() => handleDelete(project.pro_id)}
-                      className="p-1 text-slate-400 hover:text-rose-600 rounded-md transition-colors"
-                      title="Delete"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  </div>
+                  {canManageProjects && (
+                    <div className="flex items-center gap-1 shrink-0">
+                      <button
+                        onClick={() => {
+                          setEditingProject(project);
+                          setIsModalOpen(true);
+                        }}
+                        className="p-1 text-slate-400 hover:text-brand-600 rounded-md transition-colors"
+                        title="Edit"
+                      >
+                        <Edit3 className="w-4 h-4" />
+                      </button>
+                      <button
+                        onClick={() => handleDelete(project.pro_id)}
+                        className="p-1 text-slate-400 hover:text-rose-600 rounded-md transition-colors"
+                        title="Delete"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                  )}
                 </div>
               }
             >

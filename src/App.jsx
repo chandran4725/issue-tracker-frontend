@@ -11,7 +11,7 @@ import { AssignmentListView } from './components/assignments/AssignmentListView'
 import { LoadingSpinner } from './components/common/LoadingSpinner';
 
 export function AppContent() {
-  const { isLoaded, isAuthenticated } = useAuth();
+  const { isLoaded, isAuthenticated, canManageRoles, canManageAssignments } = useAuth();
   const [activeTab, setActiveTab] = useState('dashboard');
 
   if (!isLoaded) {
@@ -37,9 +37,9 @@ export function AppContent() {
       case 'employees':
         return <EmployeeListView />;
       case 'roles':
-        return <RoleListView />;
+        return canManageRoles ? <RoleListView /> : <DashboardView onNavigate={(tab) => setActiveTab(tab)} />;
       case 'assignments':
-        return <AssignmentListView />;
+        return canManageAssignments ? <AssignmentListView /> : <DashboardView onNavigate={(tab) => setActiveTab(tab)} />;
       default:
         return <DashboardView onNavigate={(tab) => setActiveTab(tab)} />;
     }

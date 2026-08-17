@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { issueApi } from '../../api/issueApi';
 import { projectApi } from '../../api/projectApi';
 import { employeeApi } from '../../api/employeeApi';
+import { useAuth } from '../../context/AuthContext';
 import { useNotification } from '../../context/NotificationContext';
 import { IssueModal } from './IssueModal';
 import { IssueKanbanView } from './IssueKanbanView';
@@ -28,6 +29,7 @@ export function IssueListView() {
   const [editingIssue, setEditingIssue] = useState(null);
   const [isSaving, setIsSaving] = useState(false);
 
+  const { canCreateIssues, canUpdateIssues, canDeleteIssues } = useAuth();
   const { notifySuccess, notifyError } = useNotification();
 
   useEffect(() => {
@@ -152,15 +154,17 @@ export function IssueListView() {
             </button>
           </div>
 
-          <Button
-            icon={Plus}
-            onClick={() => {
-              setEditingIssue(null);
-              setIsModalOpen(true);
-            }}
-          >
-            Report Issue
-          </Button>
+          {canCreateIssues && (
+            <Button
+              icon={Plus}
+              onClick={() => {
+                setEditingIssue(null);
+                setIsModalOpen(true);
+              }}
+            >
+              Report Issue
+            </Button>
+          )}
         </div>
       </div>
 
@@ -174,22 +178,26 @@ export function IssueListView() {
           <p className="text-xs text-slate-500 max-w-sm mx-auto mt-1 mb-4">
             {search || statusFilter || projectFilter
               ? 'No issues match your current filters.'
-              : 'Great job! No issues have been logged yet.'}
+              : 'No issues logged for your assigned projects.'}
           </p>
-          <Button
-            size="sm"
-            icon={Plus}
-            onClick={() => {
-              setEditingIssue(null);
-              setIsModalOpen(true);
-            }}
-          >
-            Report Issue
-          </Button>
+          {canCreateIssues && (
+            <Button
+              size="sm"
+              icon={Plus}
+              onClick={() => {
+                setEditingIssue(null);
+                setIsModalOpen(true);
+              }}
+            >
+              Report Issue
+            </Button>
+          )}
         </Card>
       ) : viewMode === 'kanban' ? (
         <IssueKanbanView
           issues={filteredIssues}
+          canUpdate={canUpdateIssues}
+          canDelete={canDeleteIssues}
           onEdit={(issue) => {
             setEditingIssue(issue);
             setIsModalOpen(true);
@@ -207,7 +215,9 @@ export function IssueListView() {
                   <th className="py-3.5 px-4">Project</th>
                   <th className="py-3.5 px-4">Assignee</th>
                   <th className="py-3.5 px-4">Status</th>
-                  <th className="py-3.5 px-4 text-right">Actions</th>
+                  {(canUpdateIssues || canDeleteIssues) && (
+                    <th className="py-3.5 px-4 text-right">Actions</th>
+                  )}
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -226,27 +236,33 @@ export function IssueListView() {
                     <td className="py-3.5 px-4">
                       <Badge variant={issue.status}>{issue.status}</Badge>
                     </td>
-                    <td className="py-3.5 px-4 text-right">
-                      <div className="flex items-center justify-end gap-2">
-                        <button
-                          onClick={() => {
-                            setEditingIssue(issue);
-                            setIsModalOpen(true);
-                          }}
-                          className="p-1.5 text-slate-400 hover:text-brand-600 rounded-md transition-colors"
-                          title="Edit"
-                        >
-                          <Edit3 className="w-4 h-4" />
-                        </button>
-                        <button
-                          onClick={() => handleDelete(issue.issue_id)}
-                          className="p-1.5 text-slate-400 hover:text-rose-600 rounded-md transition-colors"
-                          title="Delete"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      </div>
-                    </td>
+                    {(canUpdateIssues || canDeleteIssues) && (
+                      <td className="py-3.5 px-4 text-right">
+                        <div className="flex items-center justify-end gap-2">
+                          {canUpdateIssues && (
+                            <button
+                              onClick={() => {
+                                setEditingIssue(issue);
+                                setIsModalOpen(true);
+                              }}
+                              className="p-1.5 text-slate-400 hover:text-brand-600 rounded-md transition-colors"
+                              title="Edit / Update Status"
+                            >
+                              <Edit3 className="w-4 h-4" />
+                            </button>
+                          )}
+                          {canDeleteIssues && (
+                            <button
+                              onClick={() => handleDelete(issue.issue_id)}
+                              className="p-1.5 text-slate-400 hover:text-rose-600 rounded-md transition-colors"
+                              title="Delete"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          )}
+                        </div>
+                      </td>
+                    )}
                   </tr>
                 ))}
               </tbody>

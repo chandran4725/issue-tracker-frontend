@@ -9,7 +9,7 @@ const COLUMNS = [
   { id: 'CLOSED', title: 'Closed', bg: 'bg-slate-500/10 text-slate-800 border-slate-200' },
 ];
 
-export function IssueKanbanView({ issues = [], onEdit, onDelete, onStatusChange }) {
+export function IssueKanbanView({ issues = [], onEdit, onDelete, canUpdate = true, canDelete = true }) {
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5 overflow-x-auto pb-4">
       {COLUMNS.map((col) => {
@@ -45,18 +45,24 @@ export function IssueKanbanView({ issues = [], onEdit, onDelete, onStatusChange 
                         {issue.issue_title}
                       </h5>
                       <div className="flex items-center gap-1 opacity-80 group-hover:opacity-100 transition-opacity">
-                        <button
-                          onClick={() => onEdit(issue)}
-                          className="p-1 text-slate-400 hover:text-brand-600 rounded transition-colors"
-                        >
-                          <Edit3 className="w-3.5 h-3.5" />
-                        </button>
-                        <button
-                          onClick={() => onDelete(issue.issue_id)}
-                          className="p-1 text-slate-400 hover:text-rose-600 rounded transition-colors"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
+                        {canUpdate && (
+                          <button
+                            onClick={() => onEdit(issue)}
+                            className="p-1 text-slate-400 hover:text-brand-600 rounded transition-colors"
+                            title="Edit / Update Status"
+                          >
+                            <Edit3 className="w-3.5 h-3.5" />
+                          </button>
+                        )}
+                        {canDelete && (
+                          <button
+                            onClick={() => onDelete(issue.issue_id)}
+                            className="p-1 text-slate-400 hover:text-rose-600 rounded transition-colors"
+                            title="Delete"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        )}
                       </div>
                     </div>
 

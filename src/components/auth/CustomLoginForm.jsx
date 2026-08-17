@@ -35,9 +35,21 @@ export function CustomLoginForm() {
       if (result.status === 'complete') {
         await setSignInActive({ session: result.createdSessionId });
         notifySuccess('Successfully signed in!');
+      } else if (result.status === 'needs_first_factor') {
+        const factorResult = await signIn.attemptFirstFactor({
+          strategy: 'password',
+          password: password,
+        });
+
+        if (factorResult.status === 'complete') {
+          await setSignInActive({ session: factorResult.createdSessionId });
+          notifySuccess('Successfully signed in!');
+        } else {
+          notifyError('Sign in incomplete. Please check your credentials.');
+        }
       } else {
         console.log('Additional sign in steps required:', result);
-        notifyError('Additional verification required.');
+        notifyError(`Sign in incomplete (status: ${result.status}).`);
       }
     } catch (err) {
       console.error('Clerk Sign In Error:', err);

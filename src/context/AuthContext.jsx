@@ -40,8 +40,17 @@ export function AuthProvider({ children }) {
   const userRole = backendRole || fallbackRole;
 
   const isAdmin = userRole === 'ADMIN';
+  const isManager = userRole === 'MANAGER';
+  const isDeveloper = userRole === 'DEVELOPER';
+
   const canManageEmployees = userRole === 'ADMIN' || userRole === 'MANAGER';
   const canManageProjects = userRole === 'ADMIN' || userRole === 'MANAGER';
+  const canManageAssignments = userRole === 'ADMIN' || userRole === 'MANAGER';
+  const canManageRoles = userRole === 'ADMIN';
+
+  const canCreateIssues = userRole === 'ADMIN' || userRole === 'MANAGER';
+  const canUpdateIssues = userRole === 'ADMIN' || userRole === 'MANAGER' || userRole === 'DEVELOPER';
+  const canDeleteIssues = userRole === 'ADMIN' || userRole === 'MANAGER';
 
   const user = isSignedIn && clerkUser ? {
     id: clerkUser.id,
@@ -66,8 +75,15 @@ export function AuthProvider({ children }) {
         currentEmployee,
         userRole,
         isAdmin,
+        isManager,
+        isDeveloper,
         canManageEmployees,
         canManageProjects,
+        canManageAssignments,
+        canManageRoles,
+        canCreateIssues,
+        canUpdateIssues,
+        canDeleteIssues,
         logout,
         clerk,
       }}

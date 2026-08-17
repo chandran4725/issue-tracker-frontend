@@ -1,4 +1,5 @@
 import React from 'react';
+import { useAuth } from '../../context/AuthContext';
 import {
   LayoutDashboard,
   FolderKanban,
@@ -15,11 +16,18 @@ const NAV_ITEMS = [
   { id: 'projects', label: 'Projects', icon: FolderKanban },
   { id: 'issues', label: 'Issues', icon: Bug },
   { id: 'employees', label: 'Employees', icon: Users },
-  { id: 'roles', label: 'Roles', icon: Shield },
-  { id: 'assignments', label: 'Assignments', icon: UserCheck },
+  { id: 'roles', label: 'Roles', icon: Shield, requiresRole: 'canManageRoles' },
+  { id: 'assignments', label: 'Assignments', icon: UserCheck, requiresRole: 'canManageAssignments' },
 ];
 
 export function Sidebar({ activeTab, setActiveTab, isOpen, setIsOpen }) {
+  const auth = useAuth();
+
+  const visibleNavItems = NAV_ITEMS.filter((item) => {
+    if (!item.requiresRole) return true;
+    return Boolean(auth[item.requiresRole]);
+  });
+
   return (
     <>
       {/* Mobile Backdrop */}
@@ -56,7 +64,7 @@ export function Sidebar({ activeTab, setActiveTab, isOpen, setIsOpen }) {
 
         {/* Nav Links */}
         <nav className="flex-1 py-6 px-3 space-y-1 overflow-y-auto">
-          {NAV_ITEMS.map((item) => {
+          {visibleNavItems.map((item) => {
             const Icon = item.icon;
             const isActive = activeTab === item.id;
             return (
