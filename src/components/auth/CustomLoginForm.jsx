@@ -13,6 +13,7 @@ export function CustomLoginForm() {
   const { notifySuccess, notifyError } = useNotification();
 
   const [mode, setMode] = useState('signin'); // 'signin' | 'signup' | 'verify'
+  const [verifyTarget, setVerifyTarget] = useState('signup'); // 'signup' | 'signin'
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [firstName, setFirstName] = useState('');
@@ -27,30 +28,61 @@ export function CustomLoginForm() {
 
     setLoading(true);
     try {
-      const result = await signIn.create({
+      let result = await signIn.create({
         identifier: email,
         password: password,
       });
 
       if (result.status === 'complete') {
         await setSignInActive({ session: result.createdSessionId });
-        notifySuccess('Successfully signed in!');
-      } else if (result.status === 'needs_first_factor') {
-        const factorResult = await signIn.attemptFirstFactor({
-          strategy: 'password',
-          password: password,
-        });
-
-        if (factorResult.status === 'complete') {
-          await setSignInActive({ session: factorResult.createdSessionId });
-          notifySuccess('Successfully signed in!');
-        } else {
-          notifyError('Sign in incomplete. Please check your credentials.');
+        if (email) {
+          setActiveUserEmail(email);
+          try {
+            await employeeApi.syncClerk(email);
+          } catch (syncErr) {
+            console.warn('Auto clerk sync note:', syncErr);
+          }
         }
-      } else {
-        console.log('Additional sign in steps required:', result);
-        notifyError(`Sign in incomplete (status: ${result.status}).`);
+        notifySuccess('Successfully signed in!');
+        return;
       }
+
+      if (result.status === 'needs_first_factor' || result.status === 'needs_factor_verification') {
+        const passwordFactor = result.supportedFirstFactors?.find((f) => f.strategy === 'password');
+        if (passwordFactor) {
+          result = await signIn.attemptFirstFactor({
+            strategy: 'password',
+            password: password,
+          });
+          if (result.status === 'complete') {
+            await setSignInActive({ session: result.createdSessionId });
+            if (email) {
+              setActiveUserEmail(email);
+              try {
+                await employeeApi.syncClerk(email);
+              } catch (syncErr) {
+                console.warn('Auto clerk sync note:', syncErr);
+              }
+            }
+            notifySuccess('Successfully signed in!');
+            return;
+          }
+        }
+
+        const emailCodeFactor = (result.supportedFirstFactors || []).find((f) => f.strategy === 'email_code');
+        if (emailCodeFactor && emailCodeFactor.emailAddressId) {
+          await signIn.prepareFirstFactor({
+            strategy: 'email_code',
+            emailAddressId: emailCodeFactor.emailAddressId,
+          });
+          setVerifyTarget('signin');
+          setMode('verify');
+          notifySuccess('Verification code sent to your email!');
+          return;
+        }
+      }
+
+      notifyError(`Sign in incomplete (status: ${result.status}).`);
     } catch (err) {
       console.error('Clerk Sign In Error:', err);
       const msg = err.errors?.[0]?.longMessage || err.errors?.[0]?.message || err.message || 'Sign in failed.';
@@ -76,6 +108,7 @@ export function CustomLoginForm() {
 
       // Prepare email verification
       await signUp.prepareEmailAddressVerification({ strategy: 'email_code' });
+      setVerifyTarget('signup');
       setMode('verify');
       notifySuccess('Verification code sent to your email!');
     } catch (err) {
@@ -90,34 +123,53 @@ export function CustomLoginForm() {
   // Handle Verification Code Submission
   const handleVerifyCode = async (e) => {
     e.preventDefault();
-    if (!isSignUpLoaded) return;
 
     setLoading(true);
     try {
-      const completeSignUp = await signUp.attemptEmailAddressVerification({
-        code: code,
-      });
+      if (verifyTarget === 'signin' && isSignInLoaded) {
+        const completeSignIn = await signIn.attemptFirstFactor({
+          strategy: 'email_code',
+          code: code,
+        });
 
-      if (completeSignUp.status === 'complete') {
-        const fullName = `${firstName} ${lastName}`.trim() || email.split('@')[0];
-
-        // Activate Clerk Session
-        await setSignUpActive({ session: completeSignUp.createdSessionId });
-
-        // Set active user email header and sync/create Employee in backend database
-        if (email) {
-          setActiveUserEmail(email);
-          try {
-            await employeeApi.syncClerk(email, fullName);
-          } catch (syncErr) {
-            console.warn('Auto employee creation note:', syncErr);
+        if (completeSignIn.status === 'complete') {
+          await setSignInActive({ session: completeSignIn.createdSessionId });
+          if (email) {
+            setActiveUserEmail(email);
+            try {
+              await employeeApi.syncClerk(email);
+            } catch (syncErr) {
+              console.warn('Auto clerk sync note:', syncErr);
+            }
           }
+          notifySuccess('Successfully verified and signed in!');
+        } else {
+          notifyError('Verification could not be completed.');
         }
+      } else if (isSignUpLoaded) {
+        const completeSignUp = await signUp.attemptEmailAddressVerification({
+          code: code,
+        });
 
-        notifySuccess('Account created, verified, and profile initialized!');
-      } else {
-        console.log('Verification incomplete:', completeSignUp);
-        notifyError('Verification could not be completed.');
+        if (completeSignUp.status === 'complete') {
+          const fullName = `${firstName} ${lastName}`.trim() || email.split('@')[0];
+
+          await setSignUpActive({ session: completeSignUp.createdSessionId });
+
+          if (email) {
+            setActiveUserEmail(email);
+            try {
+              await employeeApi.syncClerk(email, fullName);
+            } catch (syncErr) {
+              console.warn('Auto employee creation note:', syncErr);
+            }
+          }
+
+          notifySuccess('Account created, verified, and profile initialized!');
+        } else {
+          console.log('Verification incomplete:', completeSignUp);
+          notifyError('Verification could not be completed.');
+        }
       }
     } catch (err) {
       console.error('Clerk Verification Error:', err);
