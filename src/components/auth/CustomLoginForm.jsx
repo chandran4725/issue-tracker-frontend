@@ -13,7 +13,7 @@ export function CustomLoginForm() {
   const { notifySuccess, notifyError } = useNotification();
 
   const [mode, setMode] = useState('signin'); // 'signin' | 'signup' | 'verify'
-  const [verifyTarget, setVerifyTarget] = useState('signup'); // 'signup' | 'signin'
+  const [verifyTarget, setVerifyTarget] = useState('signup'); // 'signup' | 'signin_first_factor' | 'signin_second_factor'
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [firstName, setFirstName] = useState('');
@@ -47,6 +47,7 @@ export function CustomLoginForm() {
         return;
       }
 
+      // Handle first factor password attempt if required
       if (result.status === 'needs_first_factor' || result.status === 'needs_factor_verification') {
         const passwordFactor = result.supportedFirstFactors?.find((f) => f.strategy === 'password');
         if (passwordFactor) {
@@ -68,14 +69,34 @@ export function CustomLoginForm() {
             return;
           }
         }
+      }
 
+      // Handle second factor verification if required by Clerk settings
+      if (result.status === 'needs_second_factor') {
+        const secondFactor = (result.supportedSecondFactors || []).find(
+          (f) => f.strategy === 'email_code' || f.strategy === 'phone_code'
+        );
+        if (secondFactor) {
+          await signIn.prepareSecondFactor({
+            strategy: secondFactor.strategy,
+            ...(secondFactor.emailAddressId ? { emailAddressId: secondFactor.emailAddressId } : {}),
+          });
+          setVerifyTarget('signin_second_factor');
+          setMode('verify');
+          notifySuccess(`Verification code sent to your ${secondFactor.strategy === 'email_code' ? 'email' : 'phone'}!`);
+          return;
+        }
+      }
+
+      // Handle email_code as first factor if password wasn't complete
+      if (result.status === 'needs_first_factor' || result.status === 'needs_factor_verification') {
         const emailCodeFactor = (result.supportedFirstFactors || []).find((f) => f.strategy === 'email_code');
         if (emailCodeFactor && emailCodeFactor.emailAddressId) {
           await signIn.prepareFirstFactor({
             strategy: 'email_code',
             emailAddressId: emailCodeFactor.emailAddressId,
           });
-          setVerifyTarget('signin');
+          setVerifyTarget('signin_first_factor');
           setMode('verify');
           notifySuccess('Verification code sent to your email!');
           return;
@@ -126,7 +147,28 @@ export function CustomLoginForm() {
 
     setLoading(true);
     try {
-      if (verifyTarget === 'signin' && isSignInLoaded) {
+      if (verifyTarget === 'signin_second_factor' && isSignInLoaded) {
+        const completeSignIn = await signIn.attemptSecondFactor({
+          strategy: 'email_code',
+          code: code,
+        });
+
+        if (completeSignIn.status === 'complete') {
+          await setSignInActive({ session: completeSignIn.createdSessionId });
+          if (email) {
+            setActiveUserEmail(email);
+            try {
+              await employeeApi.syncClerk(email);
+            } catch (syncErr) {
+              console.warn('Auto clerk sync note:', syncErr);
+            }
+          }
+          notifySuccess('Successfully verified second factor and signed in!');
+          return;
+        } else {
+          notifyError(`Verification incomplete (status: ${completeSignIn.status}).`);
+        }
+      } else if (verifyTarget === 'signin_first_factor' && isSignInLoaded) {
         const completeSignIn = await signIn.attemptFirstFactor({
           strategy: 'email_code',
           code: code,
@@ -143,8 +185,23 @@ export function CustomLoginForm() {
             }
           }
           notifySuccess('Successfully verified and signed in!');
+          return;
+        } else if (completeSignIn.status === 'needs_second_factor') {
+          const secondFactor = (completeSignIn.supportedSecondFactors || []).find(
+            (f) => f.strategy === 'email_code' || f.strategy === 'phone_code'
+          );
+          if (secondFactor) {
+            await signIn.prepareSecondFactor({
+              strategy: secondFactor.strategy,
+              ...(secondFactor.emailAddressId ? { emailAddressId: secondFactor.emailAddressId } : {}),
+            });
+            setVerifyTarget('signin_second_factor');
+            setCode('');
+            notifySuccess(`Second factor code sent to your ${secondFactor.strategy === 'email_code' ? 'email' : 'phone'}!`);
+            return;
+          }
         } else {
-          notifyError('Verification could not be completed.');
+          notifyError(`Verification incomplete (status: ${completeSignIn.status}).`);
         }
       } else if (isSignUpLoaded) {
         const completeSignUp = await signUp.attemptEmailAddressVerification({
